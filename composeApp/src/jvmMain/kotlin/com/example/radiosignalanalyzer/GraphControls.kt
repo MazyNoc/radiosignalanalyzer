@@ -1,6 +1,8 @@
 package com.example.radiosignalanalyzer
 
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
@@ -10,8 +12,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GraphControls(
     enabled: Boolean,
@@ -34,10 +38,57 @@ fun GraphControls(
     onZeroPatternChange: (BitDecodePattern) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val textColor = if (enabled) MaterialTheme.colorScheme.onSurface
+    else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+
+    @Composable
+    fun compactTextFieldColors() = OutlinedTextFieldDefaults.colors()
+
+    @Composable
+    fun CompactField(
+        value: String,
+        onValueChange: (String) -> Unit,
+        modifier: Modifier = Modifier,
+        suffix: String = "",
+        isError: Boolean = false,
+        keyboardType: KeyboardType = KeyboardType.Number,
+        onCommit: (String) -> Unit = {}
+    ) {
+        val interactionSource = remember { MutableInteractionSource() }
+        val colors = compactTextFieldColors()
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            enabled = enabled,
+            singleLine = true,
+            textStyle = MaterialTheme.typography.bodySmall.copy(color = textColor),
+            keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { onCommit(value) }),
+            interactionSource = interactionSource,
+            modifier = modifier.onFocusChanged { if (!it.isFocused) onCommit(value) },
+            decorationBox = { innerTextField ->
+                OutlinedTextFieldDefaults.DecorationBox(
+                    value = value,
+                    innerTextField = innerTextField,
+                    enabled = enabled,
+                    singleLine = true,
+                    visualTransformation = VisualTransformation.None,
+                    interactionSource = interactionSource,
+                    isError = isError,
+                    suffix = if (suffix.isNotEmpty()) ({ Text(suffix, style = MaterialTheme.typography.bodySmall) }) else null,
+                    contentPadding = OutlinedTextFieldDefaults.contentPadding(top = 4.dp, bottom = 4.dp),
+                    colors = colors,
+                    container = {
+                        OutlinedTextFieldDefaults.Container(enabled, isError, interactionSource, colors = colors)
+                    }
+                )
+            }
+        )
+    }
+
     Surface(
         modifier = modifier.fillMaxWidth(),
         tonalElevation = 1.dp,
-        color = MaterialTheme.colorScheme.surfaceVariant
     ) {
         Column(
             modifier = Modifier
@@ -48,12 +99,12 @@ fun GraphControls(
             // Zoom slider
             Row(
                 verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
                     "Zoom",
                     style = MaterialTheme.typography.labelMedium,
-                    modifier = Modifier.width(72.dp)
                 )
                 Slider(
                     value = zoomSlider,
@@ -64,8 +115,6 @@ fun GraphControls(
                 Text(
                     text = if (viewportUs != null) formatViewport(viewportUs) else "—",
                     style = MaterialTheme.typography.labelSmall,
-                    modifier = Modifier.width(100.dp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
@@ -73,12 +122,12 @@ fun GraphControls(
             var tickText by remember(tickIntervalUs) { mutableStateOf(tickIntervalUs.toString()) }
             Row(
                 verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
                     "Ticks",
                     style = MaterialTheme.typography.labelMedium,
-                    modifier = Modifier.width(72.dp)
                 )
                 Slider(
                     value = tickIntervalUs.toFloat(),
@@ -87,23 +136,12 @@ fun GraphControls(
                     enabled = enabled,
                     modifier = Modifier.weight(1f)
                 )
-                OutlinedTextField(
+                CompactField(
                     value = tickText,
                     onValueChange = { tickText = it },
-                    enabled = enabled,
-                    singleLine = true,
-                    suffix = { Text("µs") },
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Number,
-                        imeAction = ImeAction.Done
-                    ),
-                    keyboardActions = KeyboardActions(
-                        onDone = { tickText.toIntOrNull()?.let(onTickChange) }
-                    ),
-                    modifier = Modifier
-                        .width(100.dp)
-                        .onFocusChanged { if (!it.isFocused) tickText.toIntOrNull()?.let(onTickChange) },
-                    textStyle = MaterialTheme.typography.bodySmall
+                    suffix = "µs",
+                    modifier = Modifier.widthIn(min = 72.dp),
+                    onCommit = { tickText.toIntOrNull()?.let(onTickChange) }
                 )
             }
 
@@ -111,12 +149,12 @@ fun GraphControls(
             var tickModeExpanded by remember { mutableStateOf(false) }
             Row(
                 verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
                     "Tick mode",
                     style = MaterialTheme.typography.labelMedium,
-                    modifier = Modifier.width(72.dp)
                 )
                 Box {
                     OutlinedButton(
@@ -140,66 +178,32 @@ fun GraphControls(
                         }
                     }
                 }
-                Spacer(Modifier.width(100.dp))
             }
 
-            // Marker fields — Start / Data Start / Data End in one row
+            // All text input fields in one row
             var startText by remember(startMarkerUs) { mutableStateOf(startMarkerUs?.toString() ?: "") }
             var dataStartText by remember(dataStartUs) { mutableStateOf(dataStartUs?.toString() ?: "") }
             var dataEndText by remember(dataEndTickCount) { mutableStateOf(dataEndTickCount?.toString() ?: "") }
-
-            @Composable
-            fun MarkerField(label: String, value: String, suffix: String, onChange: (String) -> Unit, onCommit: (String) -> Unit) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(label, style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    OutlinedTextField(
-                        value = value,
-                        onValueChange = onChange,
-                        enabled = enabled,
-                        singleLine = true,
-                        suffix = { Text(suffix) },
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Number,
-                            imeAction = ImeAction.Done
-                        ),
-                        keyboardActions = KeyboardActions(onDone = { onCommit(value) }),
-                        modifier = Modifier.fillMaxWidth().onFocusChanged { if (!it.isFocused) onCommit(value) },
-                        textStyle = MaterialTheme.typography.bodySmall
-                    )
-                }
-            }
-
-            Row(
-                verticalAlignment = Alignment.Top,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                MarkerField("Start", startText, "µs", { startText = it }, onStartMarkerTextChanged)
-                MarkerField("Data start", dataStartText, "µs", { dataStartText = it }, onDataStartTextChanged)
-                MarkerField("Data end", dataEndText, "ticks", { dataEndText = it }, onDataEndTextChanged)
-            }
-
-            // Bit decode patterns
-            var oneText  by remember(onePattern)  { mutableStateOf(onePattern.toString()) }
+            var oneText by remember(onePattern) { mutableStateOf(onePattern.toString()) }
             var zeroText by remember(zeroPattern) { mutableStateOf(zeroPattern.toString()) }
 
             @Composable
-            fun PatternField(label: String, value: String, onChange: (String) -> Unit, onCommit: (String) -> Unit) {
+            fun InputField(
+                label: String, value: String, suffix: String,
+                isError: Boolean = false,
+                keyboardType: KeyboardType = KeyboardType.Number,
+                onChange: (String) -> Unit, onCommit: (String) -> Unit
+            ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(label, style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    OutlinedTextField(
+                    Text(label, style = MaterialTheme.typography.labelSmall)
+                    CompactField(
                         value = value,
                         onValueChange = onChange,
-                        enabled = enabled,
-                        singleLine = true,
-                        suffix = { Text("H,L ticks") },
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                        keyboardActions = KeyboardActions(onDone = { onCommit(value) }),
-                        modifier = Modifier.fillMaxWidth().onFocusChanged { if (!it.isFocused) onCommit(value) },
-                        textStyle = MaterialTheme.typography.bodySmall,
-                        isError = BitDecodePattern.parse(value) == null
+                        suffix = suffix,
+                        isError = isError,
+                        keyboardType = keyboardType,
+                        modifier = Modifier.fillMaxWidth(),
+                        onCommit = onCommit
                     )
                 }
             }
@@ -209,14 +213,30 @@ fun GraphControls(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text(
-                    "Bit decode",
-                    style = MaterialTheme.typography.labelMedium,
-                    modifier = Modifier.width(72.dp).align(Alignment.CenterVertically)
+                InputField(
+                    "Start", startText, "µs",
+                    onChange = { startText = it }, onCommit = onStartMarkerTextChanged
                 )
-                PatternField("1 bit", oneText,  { oneText = it },  { BitDecodePattern.parse(it)?.let(onOnePatternChange) })
-                PatternField("0 bit", zeroText, { zeroText = it }, { BitDecodePattern.parse(it)?.let(onZeroPatternChange) })
-                Spacer(Modifier.weight(1f))
+                InputField(
+                    "Data start", dataStartText, "µs",
+                    onChange = { dataStartText = it }, onCommit = onDataStartTextChanged
+                )
+                InputField(
+                    "Data end", dataEndText, "ticks",
+                    onChange = { dataEndText = it }, onCommit = onDataEndTextChanged
+                )
+                InputField(
+                    "1 bit", oneText, "H,L",
+                    isError = BitDecodePattern.parse(oneText) == null,
+                    keyboardType = KeyboardType.Ascii,
+                    onChange = { oneText = it },
+                    onCommit = { BitDecodePattern.parse(it)?.let(onOnePatternChange) })
+                InputField(
+                    "0 bit", zeroText, "H,L",
+                    isError = BitDecodePattern.parse(zeroText) == null,
+                    keyboardType = KeyboardType.Ascii,
+                    onChange = { zeroText = it },
+                    onCommit = { BitDecodePattern.parse(it)?.let(onZeroPatternChange) })
             }
         }
     }
@@ -224,6 +244,6 @@ fun GraphControls(
 
 private fun formatViewport(us: Long): String = when {
     us >= 1_000_000 -> "%.2f s".format(us / 1_000_000.0)
-    us >= 1_000     -> "%.1f ms".format(us / 1_000.0)
-    else            -> "$us µs"
+    us >= 1_000 -> "%.1f ms".format(us / 1_000.0)
+    else -> "$us µs"
 }

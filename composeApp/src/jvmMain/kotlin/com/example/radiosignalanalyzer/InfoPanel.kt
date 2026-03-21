@@ -28,7 +28,6 @@ fun InfoPanel(
     Surface(
         modifier = modifier.fillMaxWidth(),
         tonalElevation = 2.dp,
-        color = MaterialTheme.colorScheme.surfaceVariant
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Row(
@@ -67,12 +66,10 @@ fun InfoPanel(
                     ) {
                         Text(
                             "Bit pattern", style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         if (bitPattern.isNotEmpty()) {
                             Text(
                                 "(${bitPattern.length} bits)", style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -81,7 +78,6 @@ fun InfoPanel(
                             text = if (bitPattern.isEmpty()) "—"
                             else bitPattern.chunked(4).joinToString(" "),
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface,
                             softWrap = true,
                             maxLines = 2
                         )
@@ -108,13 +104,10 @@ fun InfoPanel(
                     Text(
                         text = if (copied) "Hex ✓ copied" else "Hex",
                         style = MaterialTheme.typography.labelSmall,
-                        color = if (copied) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
                         text = hexValue.ifEmpty { "—" },
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface,
                         softWrap = true,
                         maxLines = 2
                     )
@@ -130,12 +123,10 @@ private fun InfoChip(label: String, value: String, maxWidth: androidx.compose.ui
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Text(
             text = value,
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.widthIn(max = maxWidth),
             maxLines = 1,
             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis

@@ -286,20 +286,60 @@ class MainViewModel : ViewModel() {
             if (segEnd >= dataEnd) break
         }
 
-        // Decode consecutive (high, low) pairs into bits
+        // Decode segments into bits.
+        //
+        // Two modes depending on the patterns:
+        //
+        // Classic (h>0, l>0): each bit is an exact (highTicks, lowTicks) pair.
+        //   Unmatched low segments between pairs are silently skipped.
+        //
+        // Tick-per-bit (l=0 for high patterns, h=0 for low patterns):
+        //   A segment of N ticks emits N/pattern bits. This lets "1,0"+"0,1"
+        //   map every individual tick directly to a 1 or 0.
+        val classicMode = onePattern.highTicks > 0 && zeroPattern.highTicks > 0
         val sb = StringBuilder()
         var i = 0
-        while (i < segments.size && !segments[i].first) i++ // skip leading lows
         while (i < segments.size) {
-            if (!segments[i].first) { i++; continue }
-            val highTicks = segments[i].second
-            val lowTicks  = if (i + 1 < segments.size && !segments[i + 1].first) segments[i + 1].second else 0
-            when {
-                highTicks == onePattern.highTicks  && lowTicks == onePattern.lowTicks  -> sb.append('1')
-                highTicks == zeroPattern.highTicks && lowTicks == zeroPattern.lowTicks -> sb.append('0')
-                else -> sb.append('?')
+            val (isHigh, count) = segments[i]
+            if (isHigh) {
+                val followingLow = if (i + 1 < segments.size && !segments[i + 1].first) segments[i + 1].second else 0
+                when {
+                    // High-only pattern (l=0): emit count/h bits of '1'
+                    onePattern.highTicks > 0 && onePattern.lowTicks == 0 && count % onePattern.highTicks == 0 -> {
+                        repeat(count / onePattern.highTicks) { sb.append('1') }
+                        i += 1
+                    }
+                    // High-only pattern for zero (l=0): emit count/h bits of '0'
+                    zeroPattern.highTicks > 0 && zeroPattern.lowTicks == 0 && count % zeroPattern.highTicks == 0 -> {
+                        repeat(count / zeroPattern.highTicks) { sb.append('0') }
+                        i += 1
+                    }
+                    // Classic exact pair match for '1'
+                    onePattern.highTicks > 0 && count == onePattern.highTicks && followingLow == onePattern.lowTicks -> {
+                        sb.append('1'); i += 2
+                    }
+                    // Classic exact pair match for '0'
+                    zeroPattern.highTicks > 0 && count == zeroPattern.highTicks && followingLow == zeroPattern.lowTicks -> {
+                        sb.append('0'); i += 2
+                    }
+                    else -> { sb.append('?'); i++ }
+                }
+            } else {
+                when {
+                    // Low-only pattern (h=0): emit count/l bits of '1'
+                    onePattern.highTicks == 0 && count % onePattern.lowTicks == 0 -> {
+                        repeat(count / onePattern.lowTicks) { sb.append('1') }
+                        i += 1
+                    }
+                    // Low-only pattern (h=0): emit count/l bits of '0'
+                    zeroPattern.highTicks == 0 && count % zeroPattern.lowTicks == 0 -> {
+                        repeat(count / zeroPattern.lowTicks) { sb.append('0') }
+                        i += 1
+                    }
+                    classicMode -> i++ // skip unmatched lows between pairs
+                    else -> { sb.append('?'); i++ }
+                }
             }
-            i += if (lowTicks > 0) 2 else 1
         }
         return sb.toString()
     }

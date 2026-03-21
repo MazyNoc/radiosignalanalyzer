@@ -54,6 +54,7 @@ fun SignalGraphView(
 ) {
     val textMeasurer = rememberTextMeasurer()
     val density = LocalDensity.current
+    val cs = MaterialTheme.colorScheme
 
     // Drag-and-drop state
     var isDragHovering by remember { mutableStateOf(false) }
@@ -145,7 +146,7 @@ fun SignalGraphView(
 
                 val topPad = 20f
                 val leftPad = 28f
-                val tickStyle = TextStyle(color = Color(0xFF9999CC), fontSize = 11.sp)
+                val tickStyle = TextStyle(color = cs.outline, fontSize = 11.sp)
                 val tickLabelHeight = textMeasurer.measure("0", style = tickStyle).size.height
                 val bottomPad = tickLabelHeight + 16f  // 8px gap above + 8px margin below
                 val signalH = h - topPad - bottomPad
@@ -156,10 +157,10 @@ fun SignalGraphView(
                 val lowY = tickBottomY - signalInset
 
                 // Background
-                drawRect(Color(0xFF1E1E2E), size = size)
+                drawRect(cs.surface, size = size)
 
                 // Y-axis labels
-                val labelStyle = TextStyle(color = Color(0xFF888888), fontSize = 10.sp)
+                val labelStyle = TextStyle(color = cs.onSurfaceVariant, fontSize = 10.sp)
                 drawText(textMeasurer, "1", style = labelStyle, topLeft = Offset(4f, highY - 8f))
                 drawText(textMeasurer, "0", style = labelStyle, topLeft = Offset(4f, lowY - 8f))
 
@@ -178,7 +179,7 @@ fun SignalGraphView(
                         val x = (tick.posUs - viewOffsetUs) * ppu
                         if (x >= 0f) {
                             drawLine(
-                                color = Color(0xFF8888CC),
+                                color = cs.outlineVariant,
                                 start = Offset(x, tickTopY),
                                 end = Offset(x, tickBottomY),
                                 strokeWidth = 1f
@@ -214,7 +215,7 @@ fun SignalGraphView(
                     }
 
                     var currentX = -partialOffsetUs * ppu
-                    val signalColor = Color(0xFF00FF88)
+                    val signalColor = cs.tertiary
                     val strokeW = 2f
 
                     for (i in startIdx until raw.size) {
@@ -251,12 +252,12 @@ fun SignalGraphView(
                     }
                 }
 
-                // Start marker
+                // Start marker — secondary (amber)
                 if (ppu > 0f && startMarkerUs != null && subFile != null) {
                     val markerX = (startMarkerUs - viewOffsetUs) * ppu
                     if (markerX in 0f..w) {
                         drawLine(
-                            color = Color(0xFFFFAA00),
+                            color = cs.secondary,
                             start = Offset(markerX, 0f),
                             end = Offset(markerX, h),
                             strokeWidth = 2f
@@ -264,18 +265,18 @@ fun SignalGraphView(
                         drawText(
                             textMeasurer,
                             "▲ Start",
-                            style = TextStyle(color = Color(0xFFFFAA00), fontSize = 9.sp),
+                            style = TextStyle(color = cs.secondary, fontSize = 9.sp),
                             topLeft = Offset(markerX + 3f, 2f)
                         )
                     }
                 }
 
-                // Header end marker
+                // Data Start marker — primary (blue)
                 if (ppu > 0f && dataStartUs != null && subFile != null) {
                     val markerX = (dataStartUs - viewOffsetUs) * ppu
                     if (markerX in 0f..w) {
                         drawLine(
-                            color = Color(0xFF00CCFF),
+                            color = cs.primary,
                             start = Offset(markerX, 0f),
                             end = Offset(markerX, h),
                             strokeWidth = 2f
@@ -283,18 +284,18 @@ fun SignalGraphView(
                         drawText(
                             textMeasurer,
                             "▲ Data Start",
-                            style = TextStyle(color = Color(0xFF00CCFF), fontSize = 9.sp),
+                            style = TextStyle(color = cs.primary, fontSize = 9.sp),
                             topLeft = Offset(markerX + 3f, 2f)
                         )
                     }
                 }
 
-                // Data end marker
+                // Data End marker — error (red)
                 if (ppu > 0f && dataEndUs != null && subFile != null) {
                     val markerX = (dataEndUs - viewOffsetUs) * ppu
                     if (markerX in 0f..w) {
                         drawLine(
-                            color = Color(0xFFFF5555),
+                            color = cs.error,
                             start = Offset(markerX, 0f),
                             end = Offset(markerX, h),
                             strokeWidth = 2f
@@ -302,7 +303,7 @@ fun SignalGraphView(
                         drawText(
                             textMeasurer,
                             "▲ Data End",
-                            style = TextStyle(color = Color(0xFFFF5555), fontSize = 9.sp),
+                            style = TextStyle(color = cs.error, fontSize = 9.sp),
                             topLeft = Offset(markerX + 3f, 2f)
                         )
                     }
@@ -315,7 +316,7 @@ fun SignalGraphView(
                     drawText(
                         textMeasurer,
                         hint,
-                        style = TextStyle(color = Color(0xFF666666), fontSize = 14.sp),
+                        style = TextStyle(color = cs.onSurfaceVariant, fontSize = 14.sp),
                         topLeft = Offset(
                             (w - measured.size.width) / 2f,
                             (h - measured.size.height) / 2f
@@ -325,13 +326,13 @@ fun SignalGraphView(
 
                 // Drag-hover overlay
                 if (isDragHovering) {
-                    drawRect(Color(0x330088FF), size = size)
+                    drawRect(cs.primary.copy(alpha = 0.15f), size = size)
                     val dropHint = "Drop .sub file here"
                     val measured = textMeasurer.measure(dropHint)
                     drawText(
                         textMeasurer,
                         dropHint,
-                        style = TextStyle(color = Color(0xFF88CCFF), fontSize = 18.sp),
+                        style = TextStyle(color = cs.primary, fontSize = 18.sp),
                         topLeft = Offset(
                             (w - measured.size.width) / 2f,
                             (h - measured.size.height) / 2f
@@ -386,7 +387,7 @@ fun SignalGraphView(
                     .fillMaxWidth()
                     .height(14.dp)
                     .padding(horizontal = 4.dp, vertical = 2.dp)
-                    .background(Color(0xFF2A2A3A), RoundedCornerShape(4.dp))
+                    .background(cs.surfaceContainerHighest, RoundedCornerShape(4.dp))
                     .onSizeChanged { scrollbarBarWidthPx = it.width.toFloat() }
                     .pointerInput(Unit) {
                         detectDragGestures { change, dragAmount ->
@@ -401,7 +402,7 @@ fun SignalGraphView(
                     val thumbX = thumbStart * size.width
                     val thumbW = (thumbFraction * size.width).coerceAtLeast(12f)
                     drawRoundRect(
-                        color = Color(0xFF5555AA),
+                        color = cs.primary,
                         topLeft = Offset(thumbX, 0f),
                         size = Size(thumbW, size.height),
                         cornerRadius = CornerRadius(4f)

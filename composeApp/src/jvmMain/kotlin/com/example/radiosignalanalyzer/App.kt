@@ -27,19 +27,32 @@ fun App(viewModel: MainViewModel, onOpenFile: () -> Unit, onLoadFile: (java.io.F
     val onePattern by viewModel.onePattern.collectAsStateWithLifecycle()
     val zeroPattern by viewModel.zeroPattern.collectAsStateWithLifecycle()
 
-    MaterialTheme(colorScheme = darkColorScheme()) {
+    val systemIsDark by produceState(initialValue = isSystemInDarkMode()) {
+        while (true) {
+            kotlinx.coroutines.delay(1000)
+            value = isSystemInDarkMode()
+        }
+    }
+    var isDark by remember(systemIsDark) { mutableStateOf(systemIsDark) }
+    MaterialTheme(colorScheme = if (isDark) darkColorScheme() else lightColorScheme()) {
         Scaffold(
             topBar = {
                 TopAppBar(
                     title = { Text("Radio Signal Analyzer") },
                     actions = {
+                        Text(
+                            if (isDark) "Dark" else "Light",
+                            style = MaterialTheme.typography.labelMedium,
+                        )
+                        Switch(
+                            checked = !isDark,
+                            onCheckedChange = { isDark = !it },
+                        )
+                        Spacer(Modifier.width(8.dp))
                         TextButton(onClick = onOpenFile) {
                             Text("Open File")
                         }
                     },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainer
-                    )
                 )
             }
         ) { padding ->
