@@ -26,6 +26,8 @@ fun App(viewModel: MainViewModel, onOpenFile: () -> Unit, onLoadFile: (java.io.F
     val hexValue by viewModel.hexValue.collectAsStateWithLifecycle()
     val onePattern by viewModel.onePattern.collectAsStateWithLifecycle()
     val zeroPattern by viewModel.zeroPattern.collectAsStateWithLifecycle()
+    val bitRegions by viewModel.bitRegions.collectAsStateWithLifecycle()
+    var showBits by remember { mutableStateOf(false) }
 
     var isDark by remember { mutableStateOf(loadDarkModePref()) }
     MaterialTheme(colorScheme = if (isDark) darkColorScheme() else lightColorScheme()) {
@@ -34,6 +36,9 @@ fun App(viewModel: MainViewModel, onOpenFile: () -> Unit, onLoadFile: (java.io.F
                 TopAppBar(
                     title = { Text("Radio Signal Analyzer") },
                     actions = {
+                        Text("Show bits", style = MaterialTheme.typography.labelMedium)
+                        Switch(checked = showBits, onCheckedChange = { showBits = it })
+                        Spacer(Modifier.width(8.dp))
                         Text(
                             if (isDark) "Dark" else "Light",
                             style = MaterialTheme.typography.labelMedium,
@@ -95,6 +100,8 @@ fun App(viewModel: MainViewModel, onOpenFile: () -> Unit, onLoadFile: (java.io.F
                     startMarkerUs = startMarkerUs,
                     dataStartUs = dataStartUs,
                     dataEndUs = dataEndUs,
+                    showBits = showBits,
+                    bitRegions = bitRegions,
                     onPan = { viewModel.pan(it) },
                     onSetStartMarker = { viewModel.setStartMarker(it) },
                     onSetDataStart = { viewModel.setDataStart(it) },

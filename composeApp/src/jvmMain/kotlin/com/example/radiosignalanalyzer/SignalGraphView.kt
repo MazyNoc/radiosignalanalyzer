@@ -45,6 +45,8 @@ fun SignalGraphView(
     startMarkerUs: Long?,
     dataStartUs: Long?,
     dataEndUs: Long?,
+    showBits: Boolean,
+    bitRegions: List<BitRegion>,
     onPan: (deltaUs: Long) -> Unit,
     onSetStartMarker: (us: Long) -> Unit,
     onSetDataStart: (us: Long) -> Unit,
@@ -192,6 +194,25 @@ fun SignalGraphView(
                                     topLeft = Offset(x + 2f, tickBottomY + 8f)
                                 )
                             }
+                        }
+                    }
+                }
+
+                // Bit region overlays
+                if (showBits && ppu > 0f && bitRegions.isNotEmpty()) {
+                    val oneColor  = Color(0f,  0.75f, 0f,  0.20f)
+                    val zeroColor = Color(0.85f, 0f,  0f,  0.20f)
+                    for (region in bitRegions) {
+                        val startX = (region.startUs - viewOffsetUs) * ppu
+                        val endX   = (region.endUs   - viewOffsetUs) * ppu
+                        val drawStart = startX.coerceAtLeast(leftPad)
+                        val drawEnd   = endX.coerceAtMost(w)
+                        if (drawEnd > drawStart) {
+                            drawRect(
+                                color = if (region.bit == '1') oneColor else zeroColor,
+                                topLeft = Offset(drawStart + 4f, tickTopY + 4f),
+                                size = Size((drawEnd - drawStart - 8f).coerceAtLeast(0f), signalH - 8f)
+                            )
                         }
                     }
                 }

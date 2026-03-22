@@ -16,6 +16,8 @@ import java.io.File
 import kotlin.math.exp
 import kotlin.math.ln
 
+data class BitRegion(val startUs: Long, val endUs: Long, val bit: Char)
+
 class MainViewModel : ViewModel() {
 
     private val _subFile = MutableStateFlow<SubFile?>(null)
@@ -118,6 +120,32 @@ class MainViewModel : ViewModel() {
         }
         sb.toString()
     }.stateIn(viewModelScope, SharingStarted.Eagerly, "")
+
+    // Time-annotated regions for each decoded bit — used to draw colored overlays in the graph.
+    val bitRegions: StateFlow<List<BitRegion>> = combine(
+        combine(rawTickString, _onePattern, _zeroPattern) { r, o, z -> Triple(r, o, z) },
+        combine(_dataStartUs, _tickIntervalUs) { s, t -> Pair(s, t) }
+    ) { (raw, oneStr, zeroStr), (dataStart, tickInterval) ->
+        if (raw.isEmpty() || dataStart == null || tickInterval <= 0) return@combine emptyList()
+        val oneTick  = patternToTickString(oneStr)  ?: return@combine emptyList()
+        val zeroTick = patternToTickString(zeroStr) ?: return@combine emptyList()
+        val regions = mutableListOf<BitRegion>()
+        var i = 0
+        while (i < raw.length) {
+            when {
+                raw.startsWith(oneTick,  i) -> {
+                    regions.add(BitRegion(dataStart + i * tickInterval.toLong(), dataStart + (i + oneTick.length) * tickInterval.toLong(), '1'))
+                    i += oneTick.length
+                }
+                raw.startsWith(zeroTick, i) -> {
+                    regions.add(BitRegion(dataStart + i * tickInterval.toLong(), dataStart + (i + zeroTick.length) * tickInterval.toLong(), '0'))
+                    i += zeroTick.length
+                }
+                else -> i++
+            }
+        }
+        regions
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val hexValue: StateFlow<String> = bitPattern.map { bits ->
         val cleanBits = bits.filter { it == '0' || it == '1' }
