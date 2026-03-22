@@ -27,13 +27,7 @@ fun App(viewModel: MainViewModel, onOpenFile: () -> Unit, onLoadFile: (java.io.F
     val onePattern by viewModel.onePattern.collectAsStateWithLifecycle()
     val zeroPattern by viewModel.zeroPattern.collectAsStateWithLifecycle()
 
-    val systemIsDark by produceState(initialValue = isSystemInDarkMode()) {
-        while (true) {
-            kotlinx.coroutines.delay(1000)
-            value = isSystemInDarkMode()
-        }
-    }
-    var isDark by remember(systemIsDark) { mutableStateOf(systemIsDark) }
+    var isDark by remember { mutableStateOf(loadDarkModePref()) }
     MaterialTheme(colorScheme = if (isDark) darkColorScheme() else lightColorScheme()) {
         Scaffold(
             topBar = {
@@ -46,7 +40,7 @@ fun App(viewModel: MainViewModel, onOpenFile: () -> Unit, onLoadFile: (java.io.F
                         )
                         Switch(
                             checked = !isDark,
-                            onCheckedChange = { isDark = !it },
+                            onCheckedChange = { isDark = !it; saveDarkModePref(!it) },
                         )
                         Spacer(Modifier.width(8.dp))
                         TextButton(onClick = onOpenFile) {
