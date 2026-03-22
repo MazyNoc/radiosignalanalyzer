@@ -38,8 +38,26 @@ compose.desktop {
 
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
-            packageName = "com.example.radiosignalanalyzer"
+            packageName = "RadioSignalAnalyzer"
             packageVersion = "1.0.0"
+            description = "Flipper Zero SubGhz RAW signal analyzer"
+            copyright = "© 2025"
+
+            macOS {
+                bundleID = "com.example.radiosignalanalyzer"
+            }
         }
+    }
+}
+
+// Convenience task: ./gradlew :composeApp:macApp
+tasks.register("macApp") {
+    group = "distribution"
+    description = "Builds the macOS .dmg installer → build/compose/binaries/main/dmg/"
+    dependsOn("packageDmg")
+    doLast {
+        val dmgDir = layout.buildDirectory.dir("compose/binaries/main/dmg").get().asFile
+        val dmg = dmgDir.listFiles()?.firstOrNull { it.extension == "dmg" }
+        if (dmg != null) println("\n✔ DMG ready: ${dmg.absolutePath}\n")
     }
 }

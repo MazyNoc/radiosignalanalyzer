@@ -26,16 +26,16 @@ fun GraphControls(
     startMarkerUs: Long?,
     dataStartUs: Long?,
     dataEndTickCount: Int?,
-    onePattern: BitDecodePattern,
-    zeroPattern: BitDecodePattern,
+    onePattern: String,
+    zeroPattern: String,
     onZoomChange: (Float) -> Unit,
     onTickChange: (Int) -> Unit,
     onTickModeChange: (TickStrategy) -> Unit,
     onStartMarkerTextChanged: (String) -> Unit,
     onDataStartTextChanged: (String) -> Unit,
     onDataEndTextChanged: (String) -> Unit,
-    onOnePatternChange: (BitDecodePattern) -> Unit,
-    onZeroPatternChange: (BitDecodePattern) -> Unit,
+    onOnePatternChange: (String) -> Unit,
+    onZeroPatternChange: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val textColor = if (enabled) MaterialTheme.colorScheme.onSurface
@@ -184,8 +184,8 @@ fun GraphControls(
             var startText by remember(startMarkerUs) { mutableStateOf(startMarkerUs?.toString() ?: "") }
             var dataStartText by remember(dataStartUs) { mutableStateOf(dataStartUs?.toString() ?: "") }
             var dataEndText by remember(dataEndTickCount) { mutableStateOf(dataEndTickCount?.toString() ?: "") }
-            var oneText by remember(onePattern) { mutableStateOf(onePattern.toString()) }
-            var zeroText by remember(zeroPattern) { mutableStateOf(zeroPattern.toString()) }
+            var oneText by remember(onePattern) { mutableStateOf(onePattern) }
+            var zeroText by remember(zeroPattern) { mutableStateOf(zeroPattern) }
 
             @Composable
             fun InputField(
@@ -226,17 +226,17 @@ fun GraphControls(
                     onChange = { dataEndText = it }, onCommit = onDataEndTextChanged
                 )
                 InputField(
-                    "1 bit", oneText, "H,L",
-                    isError = BitDecodePattern.parse(oneText) == null,
+                    "1 bit", oneText, "H,L or 1110",
+                    isError = patternToTickString(oneText) == null,
                     keyboardType = KeyboardType.Ascii,
                     onChange = { oneText = it },
-                    onCommit = { BitDecodePattern.parse(it)?.let(onOnePatternChange) })
+                    onCommit = { if (patternToTickString(it) != null) onOnePatternChange(it) })
                 InputField(
-                    "0 bit", zeroText, "H,L",
-                    isError = BitDecodePattern.parse(zeroText) == null,
+                    "0 bit", zeroText, "H,L or 1110",
+                    isError = patternToTickString(zeroText) == null,
                     keyboardType = KeyboardType.Ascii,
                     onChange = { zeroText = it },
-                    onCommit = { BitDecodePattern.parse(it)?.let(onZeroPatternChange) })
+                    onCommit = { if (patternToTickString(it) != null) onZeroPatternChange(it) })
             }
         }
     }

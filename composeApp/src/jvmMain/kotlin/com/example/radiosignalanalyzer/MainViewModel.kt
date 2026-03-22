@@ -78,27 +78,45 @@ class MainViewModel : ViewModel() {
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
-    // Bit decode patterns: what a "1" and "0" look like as (highTicks, lowTicks) pairs
-    private val _onePattern  = MutableStateFlow(BitDecodePattern.DEFAULT_ONE)
-    private val _zeroPattern = MutableStateFlow(BitDecodePattern.DEFAULT_ZERO)
-    val onePattern:  StateFlow<BitDecodePattern> = _onePattern.asStateFlow()
-    val zeroPattern: StateFlow<BitDecodePattern> = _zeroPattern.asStateFlow()
+    // Bit decode patterns stored as raw user input strings (e.g. "3,1" or "1110")
+    private val _onePattern  = MutableStateFlow("3,1")
+    private val _zeroPattern = MutableStateFlow("1,3")
+    val onePattern:  StateFlow<String> = _onePattern.asStateFlow()
+    val zeroPattern: StateFlow<String> = _zeroPattern.asStateFlow()
 
-    fun setOnePattern(p: BitDecodePattern)  { _onePattern.value = p }
-    fun setZeroPattern(p: BitDecodePattern) { _zeroPattern.value = p }
+    fun setOnePattern(s: String)  { _onePattern.value = s }
+    fun setZeroPattern(s: String) { _zeroPattern.value = s }
 
-    // Bit pattern decoded from (high, low) tick pairs between dataStart and dataEnd.
-    // Each consecutive (high-segment, low-segment) pair is matched against the one/zero patterns.
-    // Unrecognised pairs produce '?'.
-    val bitPattern: StateFlow<String> = combine(
+    // Flat tick string: one char per tick ('1'=high, '0'=low) between dataStart and dataEnd.
+    // Recomputes whenever file, markers, tick interval, or tick mode change.
+    val rawTickString: StateFlow<String> = combine(
         combine(_subFile, _dataStartUs, dataEndUs) { f, s, e -> Triple(f, s, e) },
-        combine(_tickIntervalUs, _onePattern, _zeroPattern) { t, one, zero -> Triple(t, one, zero) }
-    ) { (fileRaw, startRaw, endRaw), (tickInterval, onePattern, zeroPattern) ->
+        _tickIntervalUs
+    ) { (fileRaw, startRaw, endRaw), tickInterval ->
         val file  = fileRaw  ?: return@combine ""
         val start = startRaw ?: return@combine ""
         val end   = endRaw   ?: return@combine ""
         if (start >= end || tickInterval <= 0) return@combine ""
-        decodeBits(file.rawData, start, end, tickInterval.toLong(), onePattern, zeroPattern)
+        buildRawTickString(file.rawData, start, end, tickInterval.toLong())
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, "")
+
+    // Bit pattern: scan rawTickString with onePattern / zeroPattern tick strings.
+    // Match at current position → emit '1' or '0' and advance by pattern length.
+    // No match → emit '?' and advance by 1.
+    val bitPattern: StateFlow<String> = combine(rawTickString, _onePattern, _zeroPattern) { raw, oneStr, zeroStr ->
+        if (raw.isEmpty()) return@combine ""
+        val oneTick  = patternToTickString(oneStr)  ?: return@combine ""
+        val zeroTick = patternToTickString(zeroStr) ?: return@combine ""
+        val sb = StringBuilder()
+        var i = 0
+        while (i < raw.length) {
+            when {
+                raw.startsWith(oneTick,  i) -> { sb.append('1'); i += oneTick.length }
+                raw.startsWith(zeroTick, i) -> { sb.append('0'); i += zeroTick.length }
+                else -> { sb.append('?'); i++ }
+            }
+        }
+        sb.toString()
     }.stateIn(viewModelScope, SharingStarted.Eagerly, "")
 
     val hexValue: StateFlow<String> = bitPattern.map { bits ->
@@ -109,9 +127,7 @@ class MainViewModel : ViewModel() {
     }.stateIn(viewModelScope, SharingStarted.Eagerly, "")
 
     // init runs after all properties above are initialized
-    init {
-        applyDefaults(EXAMPLE_FILE)
-    }
+    init { }
 
     fun loadFile(file: File) {
         viewModelScope.launch {
@@ -253,20 +269,12 @@ class MainViewModel : ViewModel() {
     }
 
     /**
-     * Converts rawData segments in [dataStart, dataEnd) into (isHigh, tickCount) entries,
-     * then pairs consecutive (high, low) entries and matches each pair against [onePattern]
-     * and [zeroPattern]. Unrecognised pairs produce '?'.
+     * Builds a flat binary string from [rawData] in [[dataStart], [dataEnd]).
+     * Each character represents one tick interval: '1' = high, '0' = low.
+     * The dynamic tick algorithm is used to count how many ticks each signal segment spans.
      */
-    private fun decodeBits(
-        rawData: IntArray,
-        dataStart: Long,
-        dataEnd: Long,
-        interval: Long,
-        onePattern: BitDecodePattern,
-        zeroPattern: BitDecodePattern
-    ): String {
-        // Build list of (isHigh, tickCount) for segments in range
-        val segments = mutableListOf<Pair<Boolean, Int>>()
+    private fun buildRawTickString(rawData: IntArray, dataStart: Long, dataEnd: Long, interval: Long): String {
+        val sb = StringBuilder()
         var accumUs = 0L
         var phase = dataStart
         for (sample in rawData) {
@@ -278,68 +286,12 @@ class MainViewModel : ViewModel() {
             val T = minOf(segEnd, dataEnd)
             val k = Math.floorDiv(T - phase, interval)
             val prevSlot = phase + k * interval
-            val nextSlot = prevSlot + interval
-            val numTicks = (if (prevSlot > phase && T - prevSlot <= nextSlot - T) k else k + 1)
+            val numTicks = (if (prevSlot > phase && T - prevSlot <= prevSlot + interval - T) k else k + 1)
                 .toInt().coerceAtLeast(0)
-            if (numTicks > 0) segments.add((sample > 0) to numTicks)
+            val ch = if (sample > 0) '1' else '0'
+            repeat(numTicks) { sb.append(ch) }
             phase = T
             if (segEnd >= dataEnd) break
-        }
-
-        // Decode segments into bits.
-        //
-        // Two modes depending on the patterns:
-        //
-        // Classic (h>0, l>0): each bit is an exact (highTicks, lowTicks) pair.
-        //   Unmatched low segments between pairs are silently skipped.
-        //
-        // Tick-per-bit (l=0 for high patterns, h=0 for low patterns):
-        //   A segment of N ticks emits N/pattern bits. This lets "1,0"+"0,1"
-        //   map every individual tick directly to a 1 or 0.
-        val classicMode = onePattern.highTicks > 0 && zeroPattern.highTicks > 0
-        val sb = StringBuilder()
-        var i = 0
-        while (i < segments.size) {
-            val (isHigh, count) = segments[i]
-            if (isHigh) {
-                val followingLow = if (i + 1 < segments.size && !segments[i + 1].first) segments[i + 1].second else 0
-                when {
-                    // High-only pattern (l=0): emit count/h bits of '1'
-                    onePattern.highTicks > 0 && onePattern.lowTicks == 0 && count % onePattern.highTicks == 0 -> {
-                        repeat(count / onePattern.highTicks) { sb.append('1') }
-                        i += 1
-                    }
-                    // High-only pattern for zero (l=0): emit count/h bits of '0'
-                    zeroPattern.highTicks > 0 && zeroPattern.lowTicks == 0 && count % zeroPattern.highTicks == 0 -> {
-                        repeat(count / zeroPattern.highTicks) { sb.append('0') }
-                        i += 1
-                    }
-                    // Classic exact pair match for '1'
-                    onePattern.highTicks > 0 && count == onePattern.highTicks && followingLow == onePattern.lowTicks -> {
-                        sb.append('1'); i += 2
-                    }
-                    // Classic exact pair match for '0'
-                    zeroPattern.highTicks > 0 && count == zeroPattern.highTicks && followingLow == zeroPattern.lowTicks -> {
-                        sb.append('0'); i += 2
-                    }
-                    else -> { sb.append('?'); i++ }
-                }
-            } else {
-                when {
-                    // Low-only pattern (h=0): emit count/l bits of '1'
-                    onePattern.highTicks == 0 && count % onePattern.lowTicks == 0 -> {
-                        repeat(count / onePattern.lowTicks) { sb.append('1') }
-                        i += 1
-                    }
-                    // Low-only pattern (h=0): emit count/l bits of '0'
-                    zeroPattern.highTicks == 0 && count % zeroPattern.lowTicks == 0 -> {
-                        repeat(count / zeroPattern.lowTicks) { sb.append('0') }
-                        i += 1
-                    }
-                    classicMode -> i++ // skip unmatched lows between pairs
-                    else -> { sb.append('?'); i++ }
-                }
-            }
         }
         return sb.toString()
     }
@@ -382,18 +334,5 @@ class MainViewModel : ViewModel() {
             )
         }
 
-        // Example data for development
-        val EXAMPLE_FILE = SubFile(
-            filetype = "Flipper SubGhz RAW File",
-            version = 1,
-            frequencyHz = 315_000_000L,
-            preset = "FuriHalSubGhzPreset2FSKDev476Async",
-            protocol = "RAW",
-            rawData = intArrayOf(
-                85, -58, 201, -350, 163, -58, 143, -518, 115, -56,
-                371, -86, 171, -404, 421, -234, 129, -202, 113, -202,
-                115, -86, 431, -214, 191, -72, 335, -58, 85
-            )
-        )
     }
 }

@@ -311,17 +311,22 @@ fun SignalGraphView(
 
                 // Empty state hint
                 if (subFile == null && !isDragHovering) {
-                    val hint = "Open a .sub file to begin"
-                    val measured = textMeasurer.measure(hint)
-                    drawText(
-                        textMeasurer,
-                        hint,
-                        style = TextStyle(color = cs.onSurfaceVariant, fontSize = 14.sp),
-                        topLeft = Offset(
-                            (w - measured.size.width) / 2f,
-                            (h - measured.size.height) / 2f
+                    val lines = listOf("Drop a .sub file here", "or use Open File above")
+                    val lineHeight = textMeasurer.measure(lines[0], style = TextStyle(fontSize = 16.sp)).size.height
+                    val gap = 8f
+                    val totalHeight = lines.size * lineHeight + (lines.size - 1) * gap
+                    lines.forEachIndexed { idx, line ->
+                        val measured = textMeasurer.measure(line, style = TextStyle(fontSize = 16.sp))
+                        val alpha = if (idx == 0) 1f else 0.5f
+                        drawText(
+                            textMeasurer, line,
+                            style = TextStyle(color = cs.onSurfaceVariant.copy(alpha = alpha), fontSize = 16.sp),
+                            topLeft = Offset(
+                                (w - measured.size.width) / 2f,
+                                (h - totalHeight) / 2f + idx * (lineHeight + gap)
+                            )
                         )
-                    )
+                    }
                 }
 
                 // Drag-hover overlay
