@@ -16,7 +16,9 @@ import java.awt.Desktop
 import java.awt.FileDialog
 import java.io.File
 
-fun main() = application {
+fun main() {
+    System.setProperty("apple.awt.application.name", "Radio Signal Analyzer")
+    application {
     val viewModel = remember { MainViewModel() }
     val isMac = System.getProperty("os.name").lowercase().contains("mac")
     var showAbout by remember { mutableStateOf(false) }
@@ -94,5 +96,6 @@ fun main() = application {
             }
         }
         App(viewModel = viewModel, onOpenFile = ::openFile, onLoadFile = { viewModel.loadAny(it) })
+    }
     }
 }

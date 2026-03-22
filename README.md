@@ -57,3 +57,7 @@ All application code lives in `composeApp/src/jvmMain/`:
 | `BitDecodePattern.kt` | Pattern string validation and conversion |
 
 Built with **Kotlin Multiplatform** + **Compose Multiplatform** targeting Desktop (JVM).
+
+## License
+
+This project is licensed under the [GNU General Public License v3.0](LICENSE).

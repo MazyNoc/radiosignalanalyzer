@@ -14,7 +14,7 @@ kotlin {
         commonMain.dependencies {
             implementation(libs.compose.runtime)
             implementation(libs.compose.foundation)
-            implementation(compose.material3)
+            implementation(libs.compose.material3)
             implementation(libs.compose.ui)
             implementation(libs.compose.components.resources)
             implementation(libs.compose.uiToolingPreview)
@@ -35,6 +35,7 @@ kotlin {
 compose.desktop {
     application {
         mainClass = "com.example.radiosignalanalyzer.MainKt"
+        jvmArgs("-Xdock:name=Radio Signal Analyzer")
 
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
