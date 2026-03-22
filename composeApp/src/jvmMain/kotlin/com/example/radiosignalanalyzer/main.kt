@@ -15,11 +15,11 @@ fun main() = application {
 
     fun openFile() {
         val dialog = FileDialog(null as java.awt.Frame?, "Open Flipper SubGhz file", FileDialog.LOAD)
-        dialog.setFilenameFilter { _, name -> name.endsWith(".sub") }
+        dialog.setFilenameFilter { _, name -> name.endsWith(".sub") || name.endsWith(".sam") }
         dialog.isVisible = true
         val dir = dialog.directory
         val name = dialog.file
-        if (dir != null && name != null) viewModel.loadFile(File(dir, name))
+        if (dir != null && name != null) viewModel.loadAny(File(dir, name))
     }
 
     Window(
@@ -36,6 +36,6 @@ fun main() = application {
                 )
             }
         }
-        App(viewModel = viewModel, onOpenFile = ::openFile, onLoadFile = { viewModel.loadFile(it) })
+        App(viewModel = viewModel, onOpenFile = ::openFile, onLoadFile = { viewModel.loadAny(it) })
     }
 }

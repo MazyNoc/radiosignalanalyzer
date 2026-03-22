@@ -34,7 +34,7 @@ sealed class TickStrategy(val displayName: String) {
     ): List<TickMark>
 
     // ── Static ────────────────────────────────────────────────────────────────
-    /** Evenly-spaced ticks aligned to [originUs], one every [tickIntervalUs] µs. */
+    /** Evenly-spaced ticks aligned to the origin, one every tick interval µs. Every 4th tick carries a label. */
     object Static : TickStrategy("Static") {
         override fun computeTicks(
             viewOffsetUs: Long,
@@ -63,11 +63,11 @@ sealed class TickStrategy(val displayName: String) {
 
     // ── Dynamic ───────────────────────────────────────────────────────────────
     /**
-     * Starts ticks at [originUs] with [tickIntervalUs] spacing and propagates in
-     * both directions. At every signal transition, the closest scheduled tick
-     * (before or after) is snapped to the transition and counting resumes from
-     * there — tolerating recordings that are slightly off-grid.
-     * Only ticks that land on a state change carry a label.
+     * Places a labeled tick at every signal transition (state change), working both
+     * forward and backward from the origin. Between transitions, unlabeled ticks are
+     * inserted at the configured tick interval. When a transition falls close to a
+     * regular grid slot, that grid slot is suppressed to avoid crowding.
+     * Counting always restarts from the transition, so drift never accumulates.
      */
     object Dynamic : TickStrategy("Dynamic") {
         override fun computeTicks(
@@ -157,5 +157,6 @@ sealed class TickStrategy(val displayName: String) {
 
     companion object {
         val all: List<TickStrategy> get() = listOf(Static, Dynamic)
+        fun fromName(name: String): TickStrategy? = all.firstOrNull { it.displayName == name }
     }
 }

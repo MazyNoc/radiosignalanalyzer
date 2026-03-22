@@ -68,7 +68,7 @@ fun SignalGraphView(
                 if (data is DragData.FilesList) {
                     data.readFiles()
                         .mapNotNull { runCatching { File(URI(it)) }.getOrNull() }
-                        .firstOrNull { it.extension == "sub" }
+                        .firstOrNull { it.extension == "sub" || it.extension == "sam" }
                         ?.let { onLoadFile(it) }
                     return true
                 }
@@ -96,7 +96,6 @@ fun SignalGraphView(
     // rememberUpdatedState so drag lambdas always see latest values without restarting gesture
     val currentViewFractionPerUs by rememberUpdatedState(viewFractionPerUs)
     val currentLocalCanvasWidthPx by rememberUpdatedState(localCanvasWidthPx)
-    val currentViewOffsetUs by rememberUpdatedState(viewOffsetUs)
 
     Column(modifier = modifier) {
         // ── Signal canvas ────────────────────────────────────────────────────
@@ -332,7 +331,7 @@ fun SignalGraphView(
 
                 // Empty state hint
                 if (subFile == null && !isDragHovering) {
-                    val lines = listOf("Drop a .sub file here", "or use Open File above")
+                    val lines = listOf("Drop a .sub or .sam file here", "or use Open File above")
                     val lineHeight = textMeasurer.measure(lines[0], style = TextStyle(fontSize = 16.sp)).size.height
                     val gap = 8f
                     val totalHeight = lines.size * lineHeight + (lines.size - 1) * gap
@@ -353,7 +352,7 @@ fun SignalGraphView(
                 // Drag-hover overlay
                 if (isDragHovering) {
                     drawRect(cs.primary.copy(alpha = 0.15f), size = size)
-                    val dropHint = "Drop .sub file here"
+                    val dropHint = "Drop .sub or .sam file here"
                     val measured = textMeasurer.measure(dropHint)
                     drawText(
                         textMeasurer,

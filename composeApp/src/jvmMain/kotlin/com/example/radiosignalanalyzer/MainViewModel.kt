@@ -23,8 +23,15 @@ class MainViewModel : ViewModel() {
     private val _subFile = MutableStateFlow<SubFile?>(null)
     val subFile: StateFlow<SubFile?> = _subFile.asStateFlow()
 
+    private val _sourceFile = MutableStateFlow<File?>(null)
+
     private val _parseError = MutableStateFlow<String?>(null)
     val parseError: StateFlow<String?> = _parseError.asStateFlow()
+
+    // Show-bits overlay toggle
+    private val _showBits = MutableStateFlow(false)
+    val showBits: StateFlow<Boolean> = _showBits.asStateFlow()
+    fun setShowBits(v: Boolean) { _showBits.value = v }
 
     // Zoom expressed as a 0..1 slider; 0 = fit to window, 1 = 100 µs visible.
     private val _zoomSlider = MutableStateFlow(0f)
@@ -157,20 +164,67 @@ class MainViewModel : ViewModel() {
     // init runs after all properties above are initialized
     init { }
 
+    /** Accepts either a .sub or a .sam file. For .sam, resolves the sibling .sub first. */
+    fun loadAny(file: File) {
+        if (file.extension == "sam") {
+            val sub = file.resolveSibling(file.nameWithoutExtension + ".sub")
+            if (sub.exists()) loadFile(sub)
+            else _parseError.value = "No matching .sub file found for ${file.name}"
+        } else {
+            loadFile(file)
+        }
+    }
+
     fun loadFile(file: File) {
         viewModelScope.launch {
             val result = withContext(Dispatchers.IO) { SubFileParser.parse(file) }
             when (result) {
                 is SubFileParser.Result.Success -> {
+                    _sourceFile.value = file
                     applyDefaults(result.file)
                     _parseError.value = null
                     _viewOffsetUs.value = 0L
+                    // Auto-load sidecar if present
+                    val sam = file.resolveSibling(file.nameWithoutExtension + ".sam")
+                    withContext(Dispatchers.IO) { if (sam.exists()) loadSam(sam) }
                 }
                 is SubFileParser.Result.Error -> {
                     _parseError.value = result.message
                 }
             }
         }
+    }
+
+    fun saveSam() {
+        val src = _sourceFile.value ?: return
+        val samFile = src.resolveSibling(src.nameWithoutExtension + ".sam")
+        SamFileParser.write(
+            file        = samFile,
+            zoom        = _zoomSlider.value,
+            viewoffset  = _viewOffsetUs.value,
+            ticksize    = _tickIntervalUs.value,
+            tickmode    = _tickMode.value.displayName,
+            start       = _startMarkerUs.value,
+            datastart   = _dataStartUs.value,
+            dataend     = _dataEndTickCount.value,
+            onepattern  = _onePattern.value,
+            zeropattern = _zeroPattern.value,
+            showbits    = _showBits.value,
+        )
+    }
+
+    private fun loadSam(sam: File) {
+        val d = SamFileParser.read(sam)
+        d.zoom?.let        { _zoomSlider.value      = it }
+        d.viewoffset?.let  { _viewOffsetUs.value    = it }
+        d.ticksize?.let    { _tickIntervalUs.value  = it }
+        d.tickmode?.let    { TickStrategy.fromName(it)?.let { s -> _tickMode.value = s } }
+        d.start?.let       { _startMarkerUs.value   = it }
+        d.datastart?.let   { _dataStartUs.value     = it }
+        d.dataend?.let     { _dataEndTickCount.value = it }
+        d.onepattern?.let  { _onePattern.value      = it }
+        d.zeropattern?.let { _zeroPattern.value     = it }
+        d.showbits?.let    { _showBits.value        = it }
     }
 
     fun setZoomSlider(value: Float) {
@@ -203,10 +257,6 @@ class MainViewModel : ViewModel() {
 
     fun pan(deltaUs: Long) {
         _viewOffsetUs.value = (_viewOffsetUs.value + deltaUs).coerceIn(0L, maxViewOffsetUs())
-    }
-
-    fun setViewOffsetUs(us: Long) {
-        _viewOffsetUs.value = us.coerceIn(0L, maxViewOffsetUs())
     }
 
     fun setTickInterval(us: Int) {
@@ -242,7 +292,6 @@ class MainViewModel : ViewModel() {
         }
     }
     fun setDataEndFromText(text: String) { text.toIntOrNull()?.let { _dataEndTickCount.value = it.coerceAtLeast(0) } }
-    fun setDataEndFromTickCount(count: Int) { _dataEndTickCount.value = count.coerceAtLeast(0) }
 
     /** Computes tick positions going forward from [fromUs], using the dynamic snapping algorithm. */
     private fun forwardDynamicTicks(fromUs: Long, rawData: IntArray, interval: Long): List<Long> {
@@ -331,17 +380,8 @@ class MainViewModel : ViewModel() {
 
     private fun applyDefaults(file: SubFile) {
         val minDur = file.rawData.minOf { kotlin.math.abs(it) }
-
-        val paddedRaw = IntArray(file.rawData.size + 2).also { arr ->
-            arr[0] = -minDur
-            arr[1] = -minDur
-            file.rawData.copyInto(arr, destinationOffset = 2)
-        }
-
-        _subFile.value = file.copy(rawData = paddedRaw)
-        _startMarkerUs.value = 2L * minDur
+        _subFile.value = file
         _tickIntervalUs.value = minDur
-        // slider=0 → fit to window (entire signal fills canvas width)
         _zoomSlider.value = 0f
     }
 
